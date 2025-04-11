@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <locale.h>
+#include <libgen.h>
 #include <time.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
@@ -67,6 +69,36 @@ void strmode(mode_t mode, char *str) {
 
 int compare_pids(const void *a, const void *b) {
     return (*(pid_t*)a - *(pid_t*)b);
+}
+
+// Funções auxiliares para formatação
+static void mode_to_str(mode_t mode, char *str) {
+    str[0] = (mode & S_IFDIR) ? 'd' : (mode & S_IFLNK) ? 'l' : '-';
+    str[1] = (mode & S_IRUSR) ? 'r' : '-';
+    str[2] = (mode & S_IWUSR) ? 'w' : '-';
+    str[3] = (mode & S_IXUSR) ? 'x' : '-';
+    str[4] = (mode & S_IRGRP) ? 'r' : '-';
+    str[5] = (mode & S_IWGRP) ? 'w' : '-';
+    str[6] = (mode & S_IXGRP) ? 'x' : '-';
+    str[7] = (mode & S_IROTH) ? 'r' : '-';
+    str[8] = (mode & S_IWOTH) ? 'w' : '-';
+    str[9] = (mode & S_IXOTH) ? 'x' : '-';
+    str[10] = '\0';
+}
+
+static char* human_readable_size(long bytes) {
+    static char buf[32];
+    const char units[] = "BKMGTP";
+    int i = 0;
+    double size = bytes;
+
+    while (size >= 1024 && units[i+1]) {
+        size /= 1024;
+        i++;
+    }
+
+    snprintf(buf, sizeof(buf), "%.1f%c", size, units[i]);
+    return buf;
 }
 
 /*****************************************************************************/
@@ -165,18 +197,29 @@ int main() {
             }
         }
         else if (strcmp(args[0], "ls") == 0) {
+            if (strcmp(args[1], "-h") == 0 || strcmp(args[1], "--help") == 0) {
+                // Ajuda
+                printf("%sUso: ls [OPÇÕES] [DIRETÓRIO]%s\n", TERM_CYAN_BOLD, TERM_RESET);
+                printf("Listar conteúdo do diretório\n\n");
+                printf("%sOpções:%s\n", TERM_YELLOW_BOLD, TERM_RESET);
+                printf("  -a\t\tMostrar arquivos ocultos\n");
+                printf("  -l\t\tFormato detalhado\n");
+                printf("  --help\t\tExibir esta ajuda\n");
+                last_command_exit_error = false;
+                continue;
+            }
+
             bool long_format = false;
             bool show_all = false;
             const char *path = cwd;
-        
+
             // Processar flags
             for (int i = 1; i < arg_count; i++) {
                 if (strcmp(args[i], "-l") == 0) long_format = true;
-                if (strcmp(args[i], "-la") == 0 || strcmp(args[i], "-al") == 0) {
-                    long_format = true;
-                    show_all = true;
+                else if (strcmp(args[i], "-a") == 0) show_all = true;
+                else if (strcmp(args[i], "-la") == 0 || strcmp(args[i], "-al") == 0) {
+                    long_format = show_all = true;
                 }
-                if (strcmp(args[i], "-a") == 0) show_all = true;
             }
         
             // Obter path se especificado
@@ -391,8 +434,13 @@ void print_ls_details(const char *path, bool show_all) {
     struct dirent **entries;
     int n = scandir(path, &entries, NULL, alphasort);
 
-    printf("%sPermissões  Dono/Grupo       Tamanho  Data       Nome%s\n", TERM_BLUE, TERM_RESET);
-    
+    setlocale(LC_NUMERIC, ""); // Para separadores de milhares
+
+    printf("%s%-13.11s%-12s%-12s%9.8s %-13s%s%s\n",
+        TERM_YELLOW, "Permissões", "Dono", "Grupo", "Tamanho",
+        "Modificado", "Nome", TERM_RESET
+    );
+
     for (int i = 0; i < n; i++) {
         if (!show_all && entries[i]->d_name[0] == '.') {
             free(entries[i]);
@@ -401,38 +449,52 @@ void print_ls_details(const char *path, bool show_all) {
 
         char full_path[2048];
         snprintf(full_path, sizeof(full_path), "%s/%s", path, entries[i]->d_name);
-        
+
         struct stat st;
-        if (lstat(full_path, &st) != 0) {
+        if (lstat(full_path, &st)) {
             free(entries[i]);
             continue;
         }
 
         // Permissões
         char perms[11];
-        strmode(st.st_mode, perms);
-        perms[10] = '\0';
+        mode_to_str(st.st_mode, perms);
 
         // Dono/Grupo
         struct passwd *pw = getpwuid(st.st_uid);
         struct group *gr = getgrgid(st.st_gid);
-        
-        // Data de modificação
+
+        // Tamanho formatado
+        char size_str[32];
+        strcpy(size_str, human_readable_size(st.st_size));
+
+        // Data
         char date[20];
         strftime(date, sizeof(date), "%d %b %H:%M", localtime(&st.st_mtime));
 
-        // Cor baseada no tipo
-        const char *color = TERM_WHITE;
-        if (S_ISDIR(st.st_mode)) color = TERM_BLUE;
-        else if (st.st_mode & S_IXUSR) color = TERM_GREEN_BOLD;
+        // Cores
+        const char *file_color = TERM_WHITE;
+        if (S_ISDIR(st.st_mode)) file_color = TERM_BLUE_BOLD;
+        else if (st.st_mode & S_IXUSR) file_color = TERM_GREEN_BOLD;
+        else if (S_ISLNK(st.st_mode)) file_color = TERM_MAGENTA_BOLD;
 
-        printf("%s%-11s %-8s %-8s %8ld  %s  %s%s%s\n",
+        const char *owner_color = TERM_WHITE;
+        if (pw && strcmp(pw->pw_name, "root") == 0) owner_color = TERM_RED_BOLD;
+        else if (pw && strcmp(pw->pw_name, "?") != 0) owner_color = TERM_BLUE_BOLD;
+
+        const char *group_color = TERM_WHITE;
+        if (gr && !strcmp(gr->gr_name, "root") == 0) owner_color = TERM_RED_BOLD;
+        else if (gr && strcmp(gr->gr_name, "?") != 0) owner_color = TERM_MAGENTA_BOLD;
+
+
+        // "%s%-13.11s%-12s%-12s%9.8s %-13s%s%s\n",
+        printf("%s%-12.11s%s%-12s%s%-12s%s%9.8s %s%-13s%s%s%s%s\n",
             TERM_WHITE_BOLD, perms,
-            pw ? pw->pw_name : "?", 
-            gr ? gr->gr_name : "?",
-            (long)st.st_size,
-            date,
-            color, entries[i]->d_name,
+            owner_color, pw ? pw->pw_name : "?",
+            group_color, gr ? gr->gr_name : "?",
+            TERM_RESET, size_str,
+            TERM_CYANBRIGHT, date,
+            file_color, entries[i]->d_name,
             S_ISLNK(st.st_mode) ? "@" : "",
             TERM_RESET
         );

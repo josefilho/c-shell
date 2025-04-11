@@ -30,85 +30,27 @@ struct process_info {
     char name[256];
 };
 
-struct process_info get_process_info(pid_t pid);
-void print_process_tree(pid_t pid, int depth, bool is_last, bool *ancestors);
-bool is_number(const char *str);
-void print_ls_details(const char *path, bool show_all);
-int compare_entries(const void *a, const void *b);
-static bool is_last_child(const pid_t pid, const pid_t ppid) {
-    DIR *dir = opendir("/proc");
-    if (!dir) return false;
-    
-    struct dirent *entry;
-    pid_t last_pid = 0;
-    while ((entry = readdir(dir))) {
-        char full_path[2048];
-        snprintf(full_path, sizeof(full_path), "/proc/%s", entry->d_name);
-        struct stat st;
-        if (lstat(full_path, &st) == 0 && S_ISDIR(st.st_mode) && is_number(entry->d_name)) {
-            pid_t current_pid = atoi(entry->d_name);
-            struct process_info info = get_process_info(current_pid);
-            if (info.ppid == ppid && current_pid > last_pid) {
-                last_pid = current_pid;
-            }
-        }
-    }
-    closedir(dir);
-    return (pid == last_pid);
-}
-
-// Custom implementation of strmode
-void strmode(mode_t mode, char *str) {
-    const char *chars = "rwxrwxrwx";
-    str[0] = S_ISDIR(mode) ? 'd' : S_ISLNK(mode) ? 'l' : '-';
-    for (int i = 0; i < 9; i++) {
-        str[i + 1] = (mode & (1 << (8 - i))) ? chars[i] : '-';
-    }
-    str[10] = '\0';
-}
-
-int compare_pids(const void *a, const void *b) {
-    return (*(pid_t*)a - *(pid_t*)b);
-}
-
-// Funções auxiliares para formatação
-static void mode_to_str(mode_t mode, char *str) {
-    str[0] = (mode & S_IFDIR) ? 'd' : (mode & S_IFLNK) ? 'l' : '-';
-    str[1] = (mode & S_IRUSR) ? 'r' : '-';
-    str[2] = (mode & S_IWUSR) ? 'w' : '-';
-    str[3] = (mode & S_IXUSR) ? 'x' : '-';
-    str[4] = (mode & S_IRGRP) ? 'r' : '-';
-    str[5] = (mode & S_IWGRP) ? 'w' : '-';
-    str[6] = (mode & S_IXGRP) ? 'x' : '-';
-    str[7] = (mode & S_IROTH) ? 'r' : '-';
-    str[8] = (mode & S_IWOTH) ? 'w' : '-';
-    str[9] = (mode & S_IXOTH) ? 'x' : '-';
-    str[10] = '\0';
-}
-
-static char* human_readable_size(long bytes) {
-    static char buf[32];
-    const char units[] = "BKMGTP";
-    int i = 0;
-    double size = bytes;
-
-    while (size >= 1024 && units[i+1]) {
-        size /= 1024;
-        i++;
-    }
-
-    snprintf(buf, sizeof(buf), "%.1f%c", size, units[i]);
-    return buf;
-}
-
 /*****************************************************************************/
 
 char* _PATH;
 size_t TERM_HEIGHT = 0;
 size_t TERM_WIDTH = 0;
 
+/*****************************************************************************/
+
 void welcome_message();
 void sigchld_handler(int sig);
+struct process_info get_process_info(pid_t pid);
+void print_process_tree(pid_t pid, int depth, bool is_last, const bool *ancestors);
+bool is_number(const char *str);
+void print_ls_details(const char *path, bool show_all);
+int compare_entries(const void *a, const void *b);
+void strmode(mode_t mode, char *str);
+int compare_pids(const void *a, const void *b);
+static void mode_to_str(mode_t mode, char *str);
+static char* human_readable_size(long bytes);
+
+/*****************************************************************************/
 
 int main() {
     _PATH = malloc(2048);
@@ -344,7 +286,7 @@ struct process_info get_process_info(pid_t pid) {
 }
 
 // Função recursiva para imprimir a árvore de processos
-void print_process_tree(pid_t pid, int depth, bool is_last, bool *ancestors) {
+void print_process_tree(const pid_t pid, const int depth, const bool is_last, const bool *ancestors) {
     struct process_info info = get_process_info(pid);
     if (info.pid == 0) return;
 
@@ -414,7 +356,7 @@ void welcome_message() {
     printf("┑%s\n", TERM_RESET);
 
     char* msg = "WELCOME TO GREGORIOUS SHELL";
-    int spaces = (TERM_WIDTH - strlen(msg) - 2) / 2;
+    const int spaces = (int)(TERM_WIDTH - strlen(msg) - 2) / 2;
     printf("%s│%*s%s%s%s%*s%s\n", TERM_CYAN, spaces, "", TERM_YELLOW, msg, TERM_CYAN, spaces + 1, "", "│");
     printf("%s┕", TERM_CYAN);
     for (size_t i = 0; i < TERM_WIDTH - 2; i++) {
@@ -510,3 +452,63 @@ bool is_number(const char *str) {
     }
     return true;
 }
+
+void strmode(mode_t mode, char *str) {
+    str[0] = S_ISDIR(mode) ? 'd' : S_ISLNK(mode) ? 'l' : '-';
+    for (int i = 0; i < 9; i++) {
+        const char *chars = "rwxrwxrwx";
+        str[i + 1] = (mode & (1 << (8 - i))) ? chars[i] : '-';
+    }
+    str[10] = '\0';
+}
+
+int compare_pids(const void *a, const void *b) {
+    return (*(pid_t*)a - *(pid_t*)b);
+}
+
+static void mode_to_str(mode_t mode, char *str) {
+    str[0] = (mode & S_IFDIR) ? 'd' : (mode & S_IFLNK) ? 'l' : '-';
+    str[1] = (mode & S_IRUSR) ? 'r' : '-';
+    str[2] = (mode & S_IWUSR) ? 'w' : '-';
+    str[3] = (mode & S_IXUSR) ? 'x' : '-';
+    str[4] = (mode & S_IRGRP) ? 'r' : '-';
+    str[5] = (mode & S_IWGRP) ? 'w' : '-';
+    str[6] = (mode & S_IXGRP) ? 'x' : '-';
+    str[7] = (mode & S_IROTH) ? 'r' : '-';
+    str[8] = (mode & S_IWOTH) ? 'w' : '-';
+    str[9] = (mode & S_IXOTH) ? 'x' : '-';
+    str[10] = '\0';
+}
+
+static char* human_readable_size(long bytes) {
+    static char buf[32];
+    constexpr char units[] = "BKMGTP";
+    int i = 0;
+    double size = bytes;
+
+    while (size >= 1024 && units[i+1]) {
+        size /= 1024;
+        i++;
+    }
+
+    snprintf(buf, sizeof(buf), "%.1f%c", size, units[i]);
+    return buf;
+}
+
+
+
+// v1.0 (Apr 11 2025 - 10:44) - Creating the concept
+// v1.0.1 (Apr 11 2025 - 11:02) - Creating the logic of fork
+// v1.0.2 (Apr 11 2025 - 11:08) - Creating `cd` command
+// v1.0.3 (Apr 11 2025 - 11:20) - Creating `tree` command
+// v1.0.4 (Apr 11 2025 - 11:56) - Creating `ls` command
+// v1.1.0 (Apr 11 2025 - 12:05) - "It's not easy, right" Found a bug in `tree` command
+// v1.1.2 (Apr 11 2025 - 12:13) - "It's just a pointer!!!!" Solved the bug
+// v1.1.3 (Apr 11 2025 - 12:13) - Improving the draw in tree command (check: https://elixir.bootlin.com/busybox/1.37.0/source/procps/pstree.c)
+// v1.2.0 (Apr 11 2025 - 12:31) - COLOR IN EVERYTHING HAHAHAHA.
+// v1.2.1 (Apr 11 2025 - 12:38) - Improvements in ls command, now he accepts args (-l -a -la -al)
+// v1.3.0 (Apr 11 2025 - 13:11) - Refactor in mode_to_str, print_ls_detail, human_readable_size
+// v1.3.1 (Apr 11 2025 - 13:44) - Review in extra funtions (removed is_last_child)
+// v1.3.2 (Apr 11 2025 - 14:26) - Refactor in auxiliary functions
+// TODO: Functions documentation
+// TODO: Makefile

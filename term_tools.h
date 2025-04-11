@@ -22,6 +22,7 @@
 #define TERM_MAGENTA "\x1b[35m"
 #define TERM_CYAN "\x1b[36m"
 #define TERM_WHITE "\x1b[37m"
+#define TERM_CYANBRIGHT "\x1b[96m"
 
 // Terminal Bold Colors
 #define TERM_RED_BOLD "\x1b[1;31m"

@@ -32,23 +32,89 @@ struct process_info {
 
 /*****************************************************************************/
 
-char* _PATH;
+char *_PATH;
 size_t TERM_HEIGHT = 0;
 size_t TERM_WIDTH = 0;
 
 /*****************************************************************************/
 
+/**
+ * @brief Exibe uma mensagem de boas-vindas no terminal.
+ */
 void welcome_message();
+
+/**
+ * @brief Manipula o sinal SIGCHLD para evitar processos zumbis.
+ * @param sig O número do sinal recebido (normalmente SIGCHLD).
+ */
 void sigchld_handler(int sig);
+
+/**
+ * @brief Obtém informações de um processo a partir do PID.
+ * @param pid O PID do processo a ser analisado.
+ * @return Estrutura `process_info` preenchida com dados do processo.
+ */
 struct process_info get_process_info(pid_t pid);
+
+/**
+ * @brief Exibe a árvore de processos recursivamente.
+ * @param pid PID do processo inicial.
+ * @param depth Nível atual de profundidade na árvore.
+ * @param is_last Indica se este é o último processo do nível atual.
+ * @param ancestors Vetor booleano para rastrear os níveis da árvore.
+ */
 void print_process_tree(pid_t pid, int depth, bool is_last, const bool *ancestors);
+
+/**
+ * @brief Verifica se uma string representa um número válido.
+ * @param str A string a ser analisada.
+ * @return true se for um número, false caso contrário.
+ */
 bool is_number(const char *str);
+
+/**
+ * @brief Exibe os detalhes de arquivos no estilo do comando `ls -l`.
+ * @param path Caminho do diretório ou arquivo.
+ * @param show_all Se true, também exibe arquivos ocultos.
+ */
 void print_ls_details(const char *path, bool show_all);
+
+/**
+ * @brief Função de comparação para ordenação de entradas de diretório.
+ * @param a Ponteiro para o primeiro elemento.
+ * @param b Ponteiro para o segundo elemento.
+ * @return Valor < 0 se a < b, 0 se iguais, > 0 se a > b.
+ */
 int compare_entries(const void *a, const void *b);
+
+/**
+ * @brief Converte um modo de arquivo (bits de permissão) em string legível.
+ * @param mode Bits do modo do arquivo (mode_t).
+ * @param str String de saída onde será escrita a representação do modo.
+ */
 void strmode(mode_t mode, char *str);
+
+/**
+ * @brief Função de comparação para ordenação de PIDs.
+ * @param a Ponteiro para o primeiro PID.
+ * @param b Ponteiro para o segundo PID.
+ * @return Valor < 0 se a < b, 0 se iguais, > 0 se a > b.
+ */
 int compare_pids(const void *a, const void *b);
+
+/**
+ * @brief Converte o modo de arquivo para string no formato `-rwxr-xr--`.
+ * @param mode Modo do arquivo.
+ * @param str Buffer onde a string será armazenada.
+ */
 static void mode_to_str(mode_t mode, char *str);
-static char* human_readable_size(long bytes);
+
+/**
+ * @brief Converte um valor em bytes para uma string com tamanho legível.
+ * @param bytes Valor em bytes.
+ * @return String com o valor em formato como "1.2K", "3.4M", etc.
+ */
+static char *human_readable_size(long bytes);
 
 /*****************************************************************************/
 
@@ -58,8 +124,8 @@ int main() {
     signal(SIGCHLD, sigchld_handler);
 
     // Preparar o ambiente
-    TERM_WIDTH = (int)getTerminalCols() > 0 ? (int)getTerminalCols() : 80;
-    TERM_HEIGHT = (int)getTerminalRows() > 0 ? (int)getTerminalRows() : 24;
+    TERM_WIDTH = (int) getTerminalCols() > 0 ? (int) getTerminalCols() : 80;
+    TERM_HEIGHT = (int) getTerminalRows() > 0 ? (int) getTerminalRows() : 24;
     struct passwd *pw = getpwuid(getuid());
     char username[256];
     strcpy(username, pw->pw_name);
@@ -73,15 +139,15 @@ int main() {
     welcome_message();
     bool last_command_exit_error = false;
 
-    while( true ){
+    while (true) {
         // Prompt do usuário
         printf("%s╭─%s%s%s in %s%s%s\n",
-            TERM_CYAN, TERM_CYAN_BOLD, username, TERM_RESET, 
-            TERM_YELLOW_ITALIC, cwd, TERM_RESET);
+               TERM_CYAN, TERM_CYAN_BOLD, username, TERM_RESET,
+               TERM_YELLOW_ITALIC, cwd, TERM_RESET);
         printf("%s╰───%s❭ %s",
-            TERM_CYAN,
-            last_command_exit_error ? TERM_RED_BOLD : TERM_GREEN_BOLD,
-            TERM_RESET);
+               TERM_CYAN,
+               last_command_exit_error ? TERM_RED_BOLD : TERM_GREEN_BOLD,
+               TERM_RESET);
 
         char input[2048];
         if (fgets(input, sizeof(input), stdin) == NULL) {
@@ -108,7 +174,7 @@ int main() {
 
         // Verificar se é background
         bool background = false;
-        if (arg_count > 0 && strcmp(args[arg_count-1], "&") == 0) {
+        if (arg_count > 0 && strcmp(args[arg_count - 1], "&") == 0) {
             background = true;
             args[--arg_count] = NULL;
         }
@@ -123,10 +189,10 @@ int main() {
             printf("%scd      %s- %sMudar diretório%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
             printf("%sls      %s- %sListar diretório%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
             printf("%stree    %s- %sÁrvore de processos%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
-            printf("\n%sUse '%s&%s' no final para executar em segundo plano\n", TERM_WHITE, TERM_YELLOW_ITALIC, TERM_RESET);
+            printf("\n%sUse '%s&%s' no final para executar em segundo plano\n", TERM_WHITE, TERM_YELLOW_ITALIC,
+                   TERM_RESET);
             last_command_exit_error = false;
-        }
-        else if (strcmp(args[0], "cd") == 0) {
+        } else if (strcmp(args[0], "cd") == 0) {
             char *path = (arg_count > 1) ? args[1] : getenv("HOME");
             if (chdir(path) != 0) {
                 printf("%sErro ao mudar para %s%s\n", TERM_RED_BOLD, path, TERM_RESET);
@@ -137,9 +203,8 @@ int main() {
                     last_command_exit_error = true;
                 } else last_command_exit_error = false;
             }
-        }
-        else if (strcmp(args[0], "ls") == 0) {
-            if (strcmp(args[1], "-h") == 0 || strcmp(args[1], "--help") == 0) {
+        } else if (strcmp(args[0], "ls") == 0) {
+            if (arg_count > 1 && (strcmp(args[1], "-h") == 0 || strcmp(args[1], "--help") == 0)) {
                 // Ajuda
                 printf("%sUso: ls [OPÇÕES] [DIRETÓRIO]%s\n", TERM_CYAN_BOLD, TERM_RESET);
                 printf("Listar conteúdo do diretório\n\n");
@@ -163,7 +228,7 @@ int main() {
                     long_format = show_all = true;
                 }
             }
-        
+
             // Obter path se especificado
             for (int i = 1; i < arg_count; i++) {
                 if (args[i][0] != '-') {
@@ -171,7 +236,7 @@ int main() {
                     break;
                 }
             }
-        
+
             if (long_format) {
                 print_ls_details(path, show_all);
             } else {
@@ -181,19 +246,19 @@ int main() {
                     last_command_exit_error = true;
                     continue;
                 }
-                
+
                 struct dirent **entries;
                 int n = scandir(path, &entries, NULL, alphasort);
-                
+
                 for (int i = 0; i < n; i++) {
                     if (!show_all && entries[i]->d_name[0] == '.') {
                         free(entries[i]);
                         continue;
                     }
-                    
+
                     char full_path[2048];
                     snprintf(full_path, sizeof(full_path), "%s/%s", path, entries[i]->d_name);
-                    
+
                     struct stat st;
                     if (stat(full_path, &st) == 0) {
                         const char *color = S_ISDIR(st.st_mode) ? TERM_BLUE : TERM_GREEN;
@@ -205,8 +270,7 @@ int main() {
                 closedir(dir);
             }
             last_command_exit_error = false;
-        }
-        else if (strcmp(args[0], "tree") == 0) {
+        } else if (strcmp(args[0], "tree") == 0) {
             if (arg_count < 2) {
                 printf("%sPID faltando%s\n", TERM_RED_BOLD, TERM_RESET);
                 last_command_exit_error = true;
@@ -228,8 +292,8 @@ int main() {
             bool ancestors[16] = {0}; // Assume profundidade máxima de 16
             printf("Árvore de processos (PID %d):\n", pid);
             print_process_tree(pid, 0, true, ancestors);
-        }
-        else { // Comando externo
+        } else {
+            // Comando externo
             pid_t pid = fork();
             if (pid == 0) {
                 execvp(args[0], args);
@@ -293,7 +357,7 @@ void print_process_tree(const pid_t pid, const int depth, const bool is_last, co
     // Cores por nível
     const char *colors[] = {TERM_CYAN, TERM_GREEN, TERM_MAGENTA, TERM_BLUE, TERM_YELLOW};
     const char *color = colors[depth % 5];
-    
+
     // Imprimir indentação
     for (int i = 0; i < depth; i++) {
         if (i == depth - 1) {
@@ -309,11 +373,11 @@ void print_process_tree(const pid_t pid, const int depth, const bool is_last, co
     // Coletar filhos
     DIR *proc_dir = opendir("/proc");
     if (!proc_dir) return;
-    
+
     pid_t children[MAX_PROCESSES];
     int count = 0;
     struct dirent *entry;
-    
+
     while ((entry = readdir(proc_dir))) {
         char full_path[2048];
         snprintf(full_path, sizeof(full_path), "/proc/%s", entry->d_name);
@@ -327,23 +391,23 @@ void print_process_tree(const pid_t pid, const int depth, const bool is_last, co
         }
     }
     closedir(proc_dir);
-    
+
     // Ordenar filhos por PID
     qsort(children, count, sizeof(pid_t), compare_pids);
-    
+
     // Imprimir filhos recursivamente
-    bool new_ancestors[depth+1];
+    bool new_ancestors[depth + 1];
     memcpy(new_ancestors, ancestors, depth * sizeof(bool));
-    
+
     for (int i = 0; i < count; i++) {
-        new_ancestors[depth] = (i != count-1);
-        print_process_tree(children[i], depth+1, (i == count-1), new_ancestors);
+        new_ancestors[depth] = (i != count - 1);
+        print_process_tree(children[i], depth + 1, (i == count - 1), new_ancestors);
     }
 }
 
 // Handler para SIGCHLD (evitar zumbis)
 void sigchld_handler(int sig) {
-    (void)sig;
+    (void) sig;
     while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
@@ -355,8 +419,8 @@ void welcome_message() {
     }
     printf("┑%s\n", TERM_RESET);
 
-    char* msg = "WELCOME TO GREGORIOUS SHELL";
-    const int spaces = (int)(TERM_WIDTH - strlen(msg) - 2) / 2;
+    char *msg = "WELCOME TO GREGORIOUS SHELL";
+    const int spaces = (int) (TERM_WIDTH - strlen(msg) - 2) / 2;
     printf("%s│%*s%s%s%s%*s%s\n", TERM_CYAN, spaces, "", TERM_YELLOW, msg, TERM_CYAN, spaces + 1, "", "│");
     printf("%s┕", TERM_CYAN);
     for (size_t i = 0; i < TERM_WIDTH - 2; i++) {
@@ -379,8 +443,8 @@ void print_ls_details(const char *path, bool show_all) {
     setlocale(LC_NUMERIC, ""); // Para separadores de milhares
 
     printf("%s%-13.11s%-12s%-12s%9.8s %-13s%s%s\n",
-        TERM_YELLOW, "Permissões", "Dono", "Grupo", "Tamanho",
-        "Modificado", "Nome", TERM_RESET
+           TERM_YELLOW, "Permissões", "Dono", "Grupo", "Tamanho",
+           "Modificado", "Nome", TERM_RESET
     );
 
     for (int i = 0; i < n; i++) {
@@ -431,14 +495,14 @@ void print_ls_details(const char *path, bool show_all) {
 
         // "%s%-13.11s%-12s%-12s%9.8s %-13s%s%s\n",
         printf("%s%-12.11s%s%-12s%s%-12s%s%9.8s %s%-13s%s%s%s%s\n",
-            TERM_WHITE_BOLD, perms,
-            owner_color, pw ? pw->pw_name : "?",
-            group_color, gr ? gr->gr_name : "?",
-            TERM_RESET, size_str,
-            TERM_CYANBRIGHT, date,
-            file_color, entries[i]->d_name,
-            S_ISLNK(st.st_mode) ? "@" : "",
-            TERM_RESET
+               TERM_WHITE_BOLD, perms,
+               owner_color, pw ? pw->pw_name : "?",
+               group_color, gr ? gr->gr_name : "?",
+               TERM_RESET, size_str,
+               TERM_CYANBRIGHT, date,
+               file_color, entries[i]->d_name,
+               S_ISLNK(st.st_mode) ? "@" : "",
+               TERM_RESET
         );
         free(entries[i]);
     }
@@ -463,7 +527,7 @@ void strmode(mode_t mode, char *str) {
 }
 
 int compare_pids(const void *a, const void *b) {
-    return (*(pid_t*)a - *(pid_t*)b);
+    return (*(pid_t *) a - *(pid_t *) b);
 }
 
 static void mode_to_str(mode_t mode, char *str) {
@@ -480,13 +544,13 @@ static void mode_to_str(mode_t mode, char *str) {
     str[10] = '\0';
 }
 
-static char* human_readable_size(long bytes) {
+static char *human_readable_size(long bytes) {
     static char buf[32];
     constexpr char units[] = "BKMGTP";
     int i = 0;
     double size = bytes;
 
-    while (size >= 1024 && units[i+1]) {
+    while (size >= 1024 && units[i + 1]) {
         size /= 1024;
         i++;
     }
@@ -494,7 +558,6 @@ static char* human_readable_size(long bytes) {
     snprintf(buf, sizeof(buf), "%.1f%c", size, units[i]);
     return buf;
 }
-
 
 
 // v1.0 (Apr 11 2025 - 10:44) - Creating the concept
@@ -510,5 +573,6 @@ static char* human_readable_size(long bytes) {
 // v1.3.0 (Apr 11 2025 - 13:11) - Refactor in mode_to_str, print_ls_detail, human_readable_size
 // v1.3.1 (Apr 11 2025 - 13:44) - Review in extra funtions (removed is_last_child)
 // v1.3.2 (Apr 11 2025 - 14:26) - Refactor in auxiliary functions
-// TODO: Functions documentation
-// TODO: Makefile
+// v1.3.3 (Apr 11 2025 - 14:51) - Creating the code documentation
+// v1.3.4 (Apr 11 2025 - 15:19) - Segmentation Fault in ls command without params | __LINE__ 261 Solved with arg_count > 1
+// v1.3.5 (Apr 11 2025 - 15:47) - Code Documentation, OK

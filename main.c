@@ -77,7 +77,7 @@ bool is_number(const char *str);
  * @param path Caminho do diretório ou arquivo.
  * @param show_all Se true, também exibe arquivos ocultos.
  */
-void print_ls_details(const char *path, bool show_all);
+void print_lf_details(const char *path, bool show_all);
 
 /**
  * @brief Função de comparação para ordenação de entradas de diretório.
@@ -187,7 +187,7 @@ int main() {
             printf("%sexit    %s- %sSair do shell%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
             printf("%shelp    %s- %sMostrar ajuda%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
             printf("%scd      %s- %sMudar diretório%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
-            printf("%sls      %s- %sListar diretório%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
+            printf("%slf      %s- %sListar diretório%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
             printf("%stree    %s- %sÁrvore de processos%s\n", TERM_CYAN_BOLD, TERM_RESET, TERM_GREEN, TERM_RESET);
             printf("\n%sUse '%s&%s' no final para executar em segundo plano\n", TERM_WHITE, TERM_YELLOW_ITALIC,
                    TERM_RESET);
@@ -203,10 +203,10 @@ int main() {
                     last_command_exit_error = true;
                 } else last_command_exit_error = false;
             }
-        } else if (strcmp(args[0], "ls") == 0) {
+        } else if (strcmp(args[0], "lf") == 0) {
             if (arg_count > 1 && (strcmp(args[1], "-h") == 0 || strcmp(args[1], "--help") == 0)) {
                 // Ajuda
-                printf("%sUso: ls [OPÇÕES] [DIRETÓRIO]%s\n", TERM_CYAN_BOLD, TERM_RESET);
+                printf("%sUso: lf [OPÇÕES] [DIRETÓRIO]%s\n", TERM_CYAN_BOLD, TERM_RESET);
                 printf("Listar conteúdo do diretório\n\n");
                 printf("%sOpções:%s\n", TERM_YELLOW_BOLD, TERM_RESET);
                 printf("  -a\t\tMostrar arquivos ocultos\n");
@@ -238,7 +238,7 @@ int main() {
             }
 
             if (long_format) {
-                print_ls_details(path, show_all);
+                print_lf_details(path, show_all);
             } else {
                 DIR *dir = opendir(path);
                 if (!dir) {
@@ -257,7 +257,12 @@ int main() {
                     }
 
                     char full_path[2048];
-                    snprintf(full_path, sizeof(full_path), "%s/%s", path, entries[i]->d_name);
+                    if (strlen(path) + strlen(entries[i]->d_name) + 1 < sizeof(full_path)) {
+                        snprintf(full_path, sizeof(full_path), "%s/%s", path, entries[i]->d_name);
+                    } else {
+                        fprintf(stderr, "Warning: Path too long, skipping entry '%s'\n", entries[i]->d_name);
+                        continue;
+                    }
 
                     struct stat st;
                     if (stat(full_path, &st) == 0) {
@@ -433,7 +438,7 @@ void welcome_message() {
     printf("%s\n", TERM_RESET);
 }
 
-void print_ls_details(const char *path, bool show_all) {
+void print_lf_details(const char *path, bool show_all) {
     DIR *dir = opendir(path);
     if (!dir) return;
 
@@ -546,7 +551,7 @@ static void mode_to_str(mode_t mode, char *str) {
 
 static char *human_readable_size(long bytes) {
     static char buf[32];
-    constexpr char units[] = "BKMGTP";
+    char units[] = "BKMGTP";
     int i = 0;
     double size = bytes;
 
@@ -576,3 +581,6 @@ static char *human_readable_size(long bytes) {
 // v1.3.3 (Apr 11 2025 - 14:51) - Creating the code documentation
 // v1.3.4 (Apr 11 2025 - 15:19) - Segmentation Fault in ls command without params | __LINE__ 261 Solved with arg_count > 1
 // v1.3.5 (Apr 11 2025 - 15:47) - Code Documentation, OK
+// v1.3.6 (Apr 11 2025 - 16:00) - Removing unnecessary code, adding colors to ls -h
+// v1.4.0 (Apr 15 2025 - 10:03) - Professor has request to change command ls to another name, changed to lf
+// v1.4.1 (Apr 15 2025 - 10:22) - Fix trunk warning at __LINE__ 260

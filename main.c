@@ -119,6 +119,7 @@ static char *human_readable_size(long bytes);
 /*****************************************************************************/
 
 int main() {
+    system("clear");
     _PATH = malloc(2048);
     // Configurar o tratamento de SIGCHLD para evitar processos zumbi
     signal(SIGCHLD, sigchld_handler);
@@ -458,7 +459,7 @@ void print_lf_details(const char *path, bool show_all) {
             continue;
         }
 
-        char full_path[2048];
+        char full_path[2048 + 257];
         snprintf(full_path, sizeof(full_path), "%s/%s", path, entries[i]->d_name);
 
         struct stat st;
@@ -584,3 +585,5 @@ static char *human_readable_size(long bytes) {
 // v1.3.6 (Apr 11 2025 - 16:00) - Removing unnecessary code, adding colors to ls -h
 // v1.4.0 (Apr 15 2025 - 10:03) - Professor has request to change command ls to another name, changed to lf
 // v1.4.1 (Apr 15 2025 - 10:22) - Fix trunk warning at __LINE__ 260
+// v1.4.2 (Apr 22 2025 - 09:48) - Clean the terminal before showing the prompt
+// v1.4.3 (Apr 22 2025 - 09:51) - Fix the warning at __LINE__ 463

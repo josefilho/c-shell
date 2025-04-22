@@ -258,12 +258,8 @@ int main() {
                     }
 
                     char full_path[2048 + 257];
-                    if (strlen(path) + strlen(entries[i]->d_name) + 1 < sizeof(full_path)) {
-                        snprintf(full_path, sizeof(full_path), "%s/%s", path, entries[i]->d_name);
-                    } else {
-                        fprintf(stderr, "Warning: Path too long, skipping entry '%s'\n", entries[i]->d_name);
-                        continue;
-                    }
+                    snprintf(full_path, sizeof(full_path), "%s/%s", path, entries[i]->d_name);
+                    
 
                     struct stat st;
                     if (stat(full_path, &st) == 0) {
